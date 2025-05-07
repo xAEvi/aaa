@@ -1,11 +1,18 @@
 package org.example.modelo;
 
+import java.math.BigDecimal; // Necesario para el precio
+
 public class DiagnosticoMedicamento {
     private Integer id;
     private int idDiagnostico;
     private int idMedicamento;
     private String indicaciones;
     private int cantidad;
+
+    // Campos adicionales para mostrar detalles del medicamento (RF-DGN-004)
+    private String nombreMedicamento;
+    private String descripcionPresentacion;
+    private BigDecimal precioMedicamento; // Usar BigDecimal para precios
 
     // Para un modelo más rico, podrías tener objetos Diagnostico y Medicamento
     // private Diagnostico diagnostico;
@@ -66,13 +73,42 @@ public class DiagnosticoMedicamento {
         this.cantidad = cantidad;
     }
 
+    // Getters y Setters para los campos adicionales
+    public String getNombreMedicamento() {
+        return nombreMedicamento;
+    }
+
+    public void setNombreMedicamento(String nombreMedicamento) {
+        this.nombreMedicamento = nombreMedicamento;
+    }
+
+    public String getDescripcionPresentacion() {
+        return descripcionPresentacion;
+    }
+
+    public void setDescripcionPresentacion(String descripcionPresentacion) {
+        this.descripcionPresentacion = descripcionPresentacion;
+    }
+
+    public BigDecimal getPrecioMedicamento() {
+        return precioMedicamento;
+    }
+
+    public void setPrecioMedicamento(BigDecimal precioMedicamento) {
+        this.precioMedicamento = precioMedicamento;
+    }
+
     @Override
     public String toString() {
         return "DiagnosticoMedicamento{" +
                 "id=" + id +
                 ", idDiagnostico=" + idDiagnostico +
                 ", idMedicamento=" + idMedicamento +
+                ", indicaciones='" + indicaciones + '\'' +
                 ", cantidad=" + cantidad +
+                (nombreMedicamento != null ? ", nombreMedicamento='" + nombreMedicamento + '\'' : "") +
+                (descripcionPresentacion != null ? ", descripcionPresentacion='" + descripcionPresentacion + '\'' : "") +
+                (precioMedicamento != null ? ", precioMedicamento=" + precioMedicamento : "") +
                 '}';
     }
 }
