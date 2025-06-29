@@ -80,7 +80,7 @@ public class VentanaMedicamento extends JFrame {
 
         setTitle("Gestión de Medicamentos");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(900, 650);
+        setSize(1100, 650);
         setLocationRelativeTo(null);
 
         initComponents();
@@ -636,6 +636,14 @@ public class VentanaMedicamento extends JFrame {
                 return;
             }
 
+            // Bloquear completamente la edición si el medicamento está inactivo (RF-MDC-003)
+            if (!m.isActivo()) {    
+                JOptionPane.showMessageDialog(this,
+                        "No puede editar medicamentos inactivos",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
             // Mostrar datos en el formulario
             txtNombreEditar.setText(m.getNombre());
             txtDescripcionEditar.setText(m.getDescripcionPresentacion());
@@ -737,10 +745,12 @@ public class VentanaMedicamento extends JFrame {
                 campoPrecio.setToolTipText("El precio es requerido");
             } else {
                 BigDecimal precio = new BigDecimal(texto);
+                // Mensaje específico para precio cero (RF-MDC-005)
                 if (precio.compareTo(BigDecimal.ZERO) == 0) {
                     campoPrecio.setBackground(new Color(255, 200, 200));
                     campoPrecio.setToolTipText("Precio en cero, verificar");
-                } else if (precio.compareTo(BigDecimal.ZERO) < 0) {
+                }
+                else if (precio.compareTo(BigDecimal.ZERO) < 0) {
                     campoPrecio.setBackground(new Color(255, 200, 200));
                     campoPrecio.setToolTipText("Precio debe ser mayor a cero");
                 } else if (!texto.matches("^\\d+(\\.\\d{1,2})?$")) {
@@ -789,6 +799,16 @@ public class VentanaMedicamento extends JFrame {
             if (m == null) {
                 JOptionPane.showMessageDialog(this, "No se encontró el medicamento con ID " + id, "Error", JOptionPane.ERROR_MESSAGE);
                 return;
+            }
+
+            // Validar rol administrador para desactivar (RF-MDC-004)
+            if (m.isActivo()) {
+                if (!rolUsuarioActual.equals("Administrador")) {
+                    JOptionPane.showMessageDialog(this,
+                            "Solo administradores pueden desactivar medicamentos",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
             }
 
             String confirmacion = m.isActivo() ?
