@@ -12,8 +12,12 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class VentanaMedicamento extends JFrame {
 
@@ -52,8 +56,19 @@ public class VentanaMedicamento extends JFrame {
     private JButton btnDesactivarReactivar;
     private BigDecimal precioOriginal; // Para restaurar el precio
 
+    // NUEVO: Para caché de búsqueda rápida (RNF-MDC-001)
+    private final Map<String, List<Medicamento>> cacheBusquedaNombre = new HashMap<>();
+
+    // NUEVO: Campos para búsqueda avanzada (RF-MDC-002)
+    private JTextField txtPrecioMinBusqueda;
+    private JTextField txtPrecioMaxBusqueda;
+
+    // NUEVO: Para validación de nombre único en registro y edición (RF-MDC-001, RF-MDC-003)
+    private JLabel lblNombreUnicoRegistro;
+    private JLabel lblNombreUnicoEdicion;
+
     // Estado
-    private String rolUsuarioActual = "Recepcionista"; // Debería obtenerse del sistema de autenticación
+    private String rolUsuarioActual = "Administrador"; // Cambia según autenticación real
 
     public VentanaMedicamento() {
         this.servicioMedicamento = new ServicioMedicamento();
@@ -88,6 +103,9 @@ public class VentanaMedicamento extends JFrame {
         btnLimpiarFormulario.setBackground(new Color(220, 220, 220));
         btnLimpiarFormulario.setFocusPainted(false);
 
+        lblNombreUnicoRegistro = new JLabel(" ");
+        lblNombreUnicoRegistro.setForeground(Color.RED);
+
         // --- Pestaña 2: Búsqueda ---
         panelBusqueda = new JPanel();
         panelBusqueda.setLayout(new BorderLayout(10, 10));
@@ -100,6 +118,9 @@ public class VentanaMedicamento extends JFrame {
         btnBuscar.setForeground(Color.WHITE);
         btnBuscar.setFocusPainted(false);
 
+        txtPrecioMinBusqueda = new JTextField(7);
+        txtPrecioMaxBusqueda = new JTextField(7);
+
         modelResultados = new DefaultTableModel(new String[]{"ID", "Nombre", "Precio", "Estado", "Descripción"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -108,7 +129,8 @@ public class VentanaMedicamento extends JFrame {
 
             @Override
             public Class<?> getColumnClass(int columnIndex) {
-                if (columnIndex == 3) return Boolean.class; // Para renderizado de checkbox
+                // Cambia la columna "Estado" (índice 3) a String, NO Boolean
+                // para evitar el error de ClassCastException
                 return Object.class;
             }
         };
@@ -150,6 +172,9 @@ public class VentanaMedicamento extends JFrame {
         btnDesactivarReactivar.setForeground(Color.WHITE);
         btnDesactivarReactivar.setFocusPainted(false);
 
+        lblNombreUnicoEdicion = new JLabel(" ");
+        lblNombreUnicoEdicion.setForeground(Color.RED);
+
         // Configurar precio original
         precioOriginal = BigDecimal.ZERO;
     }
@@ -174,6 +199,9 @@ public class VentanaMedicamento extends JFrame {
         panelFormularioRegistro.add(new JLabel("Nombre*:"), gbc);
         gbc.gridx = 1; gbc.weightx = 1.0;
         panelFormularioRegistro.add(txtNombre, gbc);
+
+        gbc.gridx = 2; gbc.gridy = 0;
+        panelFormularioRegistro.add(lblNombreUnicoRegistro, gbc);
 
         // Descripción
         gbc.gridx = 0; gbc.gridy = 1;
@@ -221,6 +249,10 @@ public class VentanaMedicamento extends JFrame {
 
         panelControlesBusqueda.add(new JLabel("Buscar:"));
         panelControlesBusqueda.add(txtBusqueda);
+        panelControlesBusqueda.add(new JLabel("Precio Min:"));
+        panelControlesBusqueda.add(txtPrecioMinBusqueda);
+        panelControlesBusqueda.add(new JLabel("Precio Max:"));
+        panelControlesBusqueda.add(txtPrecioMaxBusqueda);
         panelControlesBusqueda.add(chkIncluirInactivos);
         panelControlesBusqueda.add(btnBuscar);
 
@@ -268,6 +300,9 @@ public class VentanaMedicamento extends JFrame {
         panelFormularioEdicion.add(new JLabel("Nombre*:"), gbcEditar);
         gbcEditar.gridx = 1; gbcEditar.gridwidth = 2; gbcEditar.weightx = 1.0;
         panelFormularioEdicion.add(txtNombreEditar, gbcEditar);
+
+        gbcEditar.gridx = 2; gbcEditar.gridy = 1;
+        panelFormularioEdicion.add(lblNombreUnicoEdicion, gbcEditar);
 
         // Descripción
         gbcEditar.gridx = 0; gbcEditar.gridy = 2;
@@ -322,6 +357,14 @@ public class VentanaMedicamento extends JFrame {
         btnRegistrar.addActionListener(e -> registrarMedicamento());
         btnLimpiarFormulario.addActionListener(e -> limpiarFormularioRegistro());
 
+        // Validación de nombre único en registro (RF-MDC-001)
+        txtNombre.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                validarNombreUnicoRegistro();
+            }
+        });
+
         // Validación de precio en tiempo real (RF-MDC-005)
         txtPrecio.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -350,6 +393,14 @@ public class VentanaMedicamento extends JFrame {
         btnRestaurarPrecioOriginal.addActionListener(e -> restaurarPrecioOriginal());
         btnDesactivarReactivar.addActionListener(e -> cambiarEstadoMedicamento());
 
+        // Validación de nombre único en edición (RF-MDC-003)
+        txtNombreEditar.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                validarNombreUnicoEdicion();
+            }
+        });
+
         // Validación de precio en tiempo real en edición
         txtPrecioEditar.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -358,6 +409,20 @@ public class VentanaMedicamento extends JFrame {
             public void removeUpdate(DocumentEvent e) { validarPrecio(txtPrecioEditar); }
             @Override
             public void changedUpdate(DocumentEvent e) { validarPrecio(txtPrecioEditar); }
+        });
+
+        // Solo permitir números y máximo 2 decimales en precios (RF-MDC-005)
+        txtPrecio.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) { filtrarDecimal(e, txtPrecio); }
+        });
+        txtPrecioEditar.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) { filtrarDecimal(e, txtPrecioEditar); }
+        });
+        txtPrecioMinBusqueda.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) { filtrarDecimal(e, txtPrecioMinBusqueda); }
+        });
+        txtPrecioMaxBusqueda.addKeyListener(new KeyAdapter() {
+            public void keyTyped(KeyEvent e) { filtrarDecimal(e, txtPrecioMaxBusqueda); }
         });
     }
 
@@ -369,6 +434,10 @@ public class VentanaMedicamento extends JFrame {
             // Validar campos obligatorios
             if (txtNombre.getText().trim().isEmpty()) {
                 JOptionPane.showMessageDialog(this, "El nombre del medicamento es obligatorio", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!lblNombreUnicoRegistro.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this, lblNombreUnicoRegistro.getText(), "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -411,12 +480,41 @@ public class VentanaMedicamento extends JFrame {
             String textoBusqueda = txtBusqueda.getText().trim();
             boolean incluirInactivos = chkIncluirInactivos.isSelected();
 
-            List<Medicamento> resultados = servicioMedicamento.buscarMedicamentos(
-                    textoBusqueda.isEmpty() ? null : textoBusqueda,
-                    null, // precioMin - podríamos agregar controles para esto
-                    null, // precioMax
-                    incluirInactivos
-            );
+            BigDecimal precioMin = null, precioMax = null;
+            if (!txtPrecioMinBusqueda.getText().trim().isEmpty()) {
+                try {
+                    precioMin = new BigDecimal(txtPrecioMinBusqueda.getText().trim());
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Precio mínimo inválido", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+            if (!txtPrecioMaxBusqueda.getText().trim().isEmpty()) {
+                try {
+                    precioMax = new BigDecimal(txtPrecioMaxBusqueda.getText().trim());
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Precio máximo inválido", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+
+            // Si el campo de búsqueda está vacío, buscar todos los medicamentos
+            String busqueda = textoBusqueda.isEmpty() ? null : textoBusqueda;
+
+            // RNF-MDC-001: Búsqueda con caché
+            String cacheKey = (busqueda + "|" + precioMin + "|" + precioMax + "|" + incluirInactivos).toLowerCase();
+            List<Medicamento> resultados;
+            if (cacheBusquedaNombre.containsKey(cacheKey)) {
+                resultados = cacheBusquedaNombre.get(cacheKey);
+            } else {
+                resultados = servicioMedicamento.buscarMedicamentos(
+                        busqueda,
+                        precioMin,
+                        precioMax,
+                        incluirInactivos
+                );
+                cacheBusquedaNombre.put(cacheKey, resultados);
+            }
 
             // Actualizar tabla
             modelResultados.setRowCount(0);
@@ -425,9 +523,13 @@ public class VentanaMedicamento extends JFrame {
                         m.getId(),
                         m.getNombre(),
                         m.getPrecio(),
-                        m.isActivo(),
+                        m.isActivo() ? "Activo" : "Inactivo",
                         m.getDescripcionPresentacion()
                 });
+            }
+            // Si no hay resultados, mostrar mensaje
+            if (resultados.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No se encontraron coincidencias\nVerifique ortografía", "Sin resultados", JOptionPane.INFORMATION_MESSAGE);
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error al buscar medicamentos: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -455,6 +557,13 @@ public class VentanaMedicamento extends JFrame {
             // Configurar estado
             lblEstadoEditar.setText("Estado: " + (m.isActivo() ? "Activo" : "Inactivo"));
             btnDesactivarReactivar.setText(m.isActivo() ? "Desactivar" : "Reactivar");
+            txtNombreEditar.setEnabled(m.isActivo());
+            txtDescripcionEditar.setEnabled(m.isActivo());
+            txtPrecioEditar.setEnabled(m.isActivo());
+            btnGuardarCambios.setEnabled(m.isActivo());
+
+            // Limpiar validación de nombre único
+            lblNombreUnicoEdicion.setText("");
 
             // Cambiar a pestaña de edición
             tabbedPane.setSelectedIndex(2);
@@ -482,6 +591,10 @@ public class VentanaMedicamento extends JFrame {
             // Validar campos
             if (txtNombreEditar.getText().trim().isEmpty()) {
                 JOptionPane.showMessageDialog(this, "El nombre del medicamento es obligatorio", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!lblNombreUnicoEdicion.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this, lblNombreUnicoEdicion.getText(), "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -524,18 +637,43 @@ public class VentanaMedicamento extends JFrame {
     private void validarPrecio(JTextField campoPrecio) {
         try {
             String texto = campoPrecio.getText().trim();
-            if (!texto.isEmpty()) {
+            if (texto.isEmpty()) {
+                campoPrecio.setBackground(new Color(255, 200, 200));
+                campoPrecio.setToolTipText("El precio es requerido");
+            } else {
                 BigDecimal precio = new BigDecimal(texto);
                 if (precio.compareTo(BigDecimal.ZERO) <= 0) {
                     campoPrecio.setBackground(new Color(255, 200, 200));
+                    campoPrecio.setToolTipText("Precio en cero, verificar");
+                } else if (!texto.matches("^\\d+(\\.\\d{1,2})?$")) {
+                    campoPrecio.setBackground(new Color(255, 200, 200));
+                    campoPrecio.setToolTipText("Máximo 2 decimales permitidos");
                 } else {
                     campoPrecio.setBackground(Color.WHITE);
+                    campoPrecio.setToolTipText(null);
                 }
-            } else {
-                campoPrecio.setBackground(Color.WHITE);
             }
         } catch (NumberFormatException e) {
             campoPrecio.setBackground(new Color(255, 200, 200));
+            campoPrecio.setToolTipText("Solo números y hasta 2 decimales");
+        }
+    }
+
+    // Solo permitir números y máximo 2 decimales (RF-MDC-005)
+    private void filtrarDecimal(KeyEvent e, JTextField campo) {
+        char c = e.getKeyChar();
+        String texto = campo.getText();
+        if (!Character.isDigit(c) && c != '.' && c != KeyEvent.VK_BACK_SPACE) {
+            e.consume();
+        }
+        if (c == '.' && texto.contains(".")) {
+            e.consume();
+        }
+        if (texto.contains(".")) {
+            int dec = texto.length() - texto.indexOf('.') - 1;
+            if (dec >= 2 && campo.getCaretPosition() > texto.indexOf('.')) {
+                e.consume();
+            }
         }
     }
 
@@ -597,8 +735,119 @@ public class VentanaMedicamento extends JFrame {
         txtDescripcion.setText("");
         txtPrecio.setText("");
         txtPrecio.setBackground(Color.WHITE);
+        lblNombreUnicoRegistro.setText("");
     }
 
+    // Validación de nombre único en registro (RF-MDC-001)
+    private void validarNombreUnicoRegistro() {
+        String nombre = txtNombre.getText().trim();
+        if (nombre.isEmpty()) {
+            lblNombreUnicoRegistro.setText("");
+            btnRegistrar.setEnabled(false);
+            return;
+        }
+        List<Medicamento> lista = servicioMedicamento.buscarMedicamentos(nombre, null, null, false);
+        boolean existe = lista.stream().anyMatch(m -> m.getNombre().equalsIgnoreCase(nombre));
+        if (existe) {
+            lblNombreUnicoRegistro.setText("Este medicamento ya está registrado");
+            btnRegistrar.setEnabled(false);
+        } else {
+            lblNombreUnicoRegistro.setText("");
+            btnRegistrar.setEnabled(true);
+        }
+    }
+
+    // Validación de nombre único en edición (RF-MDC-003)
+    private void validarNombreUnicoEdicion() {
+        String nombre = txtNombreEditar.getText().trim();
+        if (nombre.isEmpty()) {
+            lblNombreUnicoEdicion.setText("");
+            btnGuardarCambios.setEnabled(false);
+            return;
+        }
+        final int idActual;
+        try {
+            idActual = Integer.parseInt(txtIdEditar.getText().trim());
+        } catch (Exception ignored) {
+            lblNombreUnicoEdicion.setText("");
+            btnGuardarCambios.setEnabled(false);
+            return;
+        }
+        List<Medicamento> lista = servicioMedicamento.buscarMedicamentos(nombre, null, null, false);
+        boolean existe = lista.stream().anyMatch(m -> m.getNombre().equalsIgnoreCase(nombre) && m.getId() != idActual);
+        if (existe) {
+            lblNombreUnicoEdicion.setText("¡Nombre ya registrado! Corrija antes de guardar");
+            btnGuardarCambios.setEnabled(false);
+        } else {
+            lblNombreUnicoEdicion.setText("");
+            btnGuardarCambios.setEnabled(true);
+        }
+    }
+
+    // --- Casos de prueba automáticos (solo para demostración, no UI) ---
+    // Caso de Prueba 1: Registro válido de nuevo medicamento
+    public void testRegistroExitoso() {
+        txtNombre.setText("Paracetamol 500mg");
+        txtPrecio.setText("3.50");
+        txtDescripcion.setText("Analgésico y antipirético");
+        validarNombreUnicoRegistro();
+        registrarMedicamento();
+    }
+
+    // Caso de Prueba 2: Registro con precio inválido
+    public void testRegistroPrecioInvalido() {
+        txtNombre.setText("Ibuprofeno 400mg");
+        txtPrecio.setText("-2.50");
+        txtDescripcion.setText("Antiinflamatorio");
+        validarNombreUnicoRegistro();
+        registrarMedicamento();
+    }
+
+    // Caso de Prueba 3: Búsqueda por nombre existente
+    public void testBusquedaPorNombre() {
+        txtBusqueda.setText("Amoxicilina");
+        buscarMedicamentos();
+    }
+
+    // Caso de Prueba 4: Búsqueda sin resultados
+    public void testBusquedaSinResultados() {
+        txtBusqueda.setText("Xilocainaa");
+        buscarMedicamentos();
+    }
+
+    // Caso de Prueba 5: Actualización válida
+    public void testActualizacionValida() {
+        // Simula selección y edición de un medicamento existente
+        txtIdEditar.setText("1"); // Debe existir
+        cargarMedicamentoParaEdicion();
+        txtPrecioEditar.setText("4.50");
+        guardarCambiosMedicamento();
+    }
+
+    // Caso de Prueba 6: Actualización con nombre duplicado
+    public void testActualizacionNombreDuplicado() {
+        txtIdEditar.setText("2"); // Dipirona 500mg
+        cargarMedicamentoParaEdicion();
+        txtNombreEditar.setText("Metformina 850mg");
+        validarNombreUnicoEdicion();
+        guardarCambiosMedicamento();
+    }
+
+    // Caso de Prueba 7: Desactivación exitosa
+    public void testDesactivacionExitosa() {
+        txtIdEditar.setText("3"); // Loratadina 10mg
+        cargarMedicamentoParaEdicion();
+        cambiarEstadoMedicamento();
+    }
+
+    // Caso de Prueba 8: Desactivación con facturas pendientes
+    public void testDesactivacionConFacturasPendientes() {
+        txtIdEditar.setText("4"); // Ketorolaco 30mg
+        cargarMedicamentoParaEdicion();
+        cambiarEstadoMedicamento();
+    }
+
+    // Puedes agregar un main para pruebas manuales si lo deseas
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
