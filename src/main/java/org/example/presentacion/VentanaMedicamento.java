@@ -8,6 +8,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.Timer;
 
 public class VentanaMedicamento extends JFrame {
 
@@ -70,6 +72,9 @@ public class VentanaMedicamento extends JFrame {
     // Estado
     private String rolUsuarioActual = "Administrador"; // Cambia según autenticación real
 
+    // RNF-MDC-001: Indicador visual de carga
+    private JProgressBar progressBarBusqueda;
+
     public VentanaMedicamento() {
         this.servicioMedicamento = new ServicioMedicamento();
 
@@ -81,6 +86,8 @@ public class VentanaMedicamento extends JFrame {
         initComponents();
         layoutComponents();
         addEventListeners();
+        bloquearBotonesPorRol(); // NUEVO
+        initCacheCleaner(); // Limpiador de caché
     }
 
     private void initComponents() {
@@ -121,16 +128,25 @@ public class VentanaMedicamento extends JFrame {
         txtPrecioMinBusqueda = new JTextField(7);
         txtPrecioMaxBusqueda = new JTextField(7);
 
+        // NUEVO: Botón Reiniciar filtros de búsqueda (CU-MDC-002)
+        JButton btnReiniciar = new JButton("Reiniciar");
+        btnReiniciar.setBackground(new Color(220, 220, 220));
+        btnReiniciar.setFocusPainted(false);
+        btnReiniciar.addActionListener(e -> {
+            txtBusqueda.setText("");
+            txtPrecioMinBusqueda.setText("");
+            txtPrecioMaxBusqueda.setText("");
+            chkIncluirInactivos.setSelected(false);
+            modelResultados.setRowCount(0);
+        });
+
         modelResultados = new DefaultTableModel(new String[]{"ID", "Nombre", "Precio", "Estado", "Descripción"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false; // Tabla no editable
             }
-
             @Override
             public Class<?> getColumnClass(int columnIndex) {
-                // Cambia la columna "Estado" (índice 3) a String, NO Boolean
-                // para evitar el error de ClassCastException
                 return Object.class;
             }
         };
@@ -143,6 +159,29 @@ public class VentanaMedicamento extends JFrame {
         tblResultados.getColumnModel().getColumn(2).setPreferredWidth(80);  // Precio
         tblResultados.getColumnModel().getColumn(3).setPreferredWidth(80);  // Estado
         tblResultados.getColumnModel().getColumn(4).setPreferredWidth(300); // Descripción
+
+        // RNF-MDC-001: Renderer para iconos de estado
+        tblResultados.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                                                          boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (column == 3) { // Estado
+                    String estado = (String) value;
+                    if ("Activo".equals(estado)) {
+                        c.setBackground(new Color(200, 255, 200));
+                        c.setForeground(Color.BLACK);
+                    } else {
+                        c.setBackground(new Color(255, 200, 200));
+                        c.setForeground(Color.BLACK);
+                    }
+                } else {
+                    c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                    c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
+                }
+                return c;
+            }
+        });
 
         // --- Pestaña 3: Edición ---
         panelEdicion = new JPanel();
@@ -177,6 +216,11 @@ public class VentanaMedicamento extends JFrame {
 
         // Configurar precio original
         precioOriginal = BigDecimal.ZERO;
+
+        // RNF-MDC-001: Indicador visual de carga
+        progressBarBusqueda = new JProgressBar();
+        progressBarBusqueda.setIndeterminate(true);
+        progressBarBusqueda.setVisible(false);
     }
 
     private void layoutComponents() {
@@ -255,7 +299,21 @@ public class VentanaMedicamento extends JFrame {
         panelControlesBusqueda.add(txtPrecioMaxBusqueda);
         panelControlesBusqueda.add(chkIncluirInactivos);
         panelControlesBusqueda.add(btnBuscar);
+        // CU-MDC-002: Botón "Reiniciar" en búsquedas
+        JButton btnReiniciar = new JButton("Reiniciar");
+        btnReiniciar.setBackground(new Color(220, 220, 220));
+        btnReiniciar.setFocusPainted(false);
+        btnReiniciar.addActionListener(e -> {
+            txtBusqueda.setText("");
+            txtPrecioMinBusqueda.setText("");
+            txtPrecioMaxBusqueda.setText("");
+            chkIncluirInactivos.setSelected(false);
+            modelResultados.setRowCount(0);
+        });
+        panelControlesBusqueda.add(btnReiniciar); // Agregar botón Reiniciar
+        panelControlesBusqueda.add(progressBarBusqueda);
 
+        
         JPanel panelResultados = new JPanel(new BorderLayout());
         panelResultados.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(70, 130, 180)),
@@ -431,6 +489,11 @@ public class VentanaMedicamento extends JFrame {
     // RF-MDC-001: Registrar Nuevo Medicamento
     private void registrarMedicamento() {
         try {
+            // Validar rol antes de registrar
+            if (!rolUsuarioActual.equals("Administrador") && !rolUsuarioActual.equals("Recepcionista")) {
+                JOptionPane.showMessageDialog(this, "Acceso denegado: Solo administradores y recepcionistas pueden registrar", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
             // Validar campos obligatorios
             if (txtNombre.getText().trim().isEmpty()) {
                 JOptionPane.showMessageDialog(this, "El nombre del medicamento es obligatorio", "Error", JOptionPane.ERROR_MESSAGE);
@@ -458,7 +521,7 @@ public class VentanaMedicamento extends JFrame {
             nuevo.setDescripcionPresentacion(txtDescripcion.getText().trim());
             nuevo.setPrecio(precio);
 
-            // Llamar al servicio
+            // Llamar al servicio con rol
             String resultado = servicioMedicamento.registrarMedicamento(nuevo);
 
             if (resultado.startsWith("OK:")) {
@@ -474,67 +537,92 @@ public class VentanaMedicamento extends JFrame {
         }
     }
 
+    // RNF-MDC-001: Limpiador de caché cada 5 minutos
+    private void initCacheCleaner() {
+        Timer timer = new Timer(300000, e -> cacheBusquedaNombre.clear());
+        timer.setRepeats(true);
+        timer.start();
+    }
+
     // RF-MDC-002: Búsqueda Avanzada de Medicamentos
     private void buscarMedicamentos() {
-        try {
-            String textoBusqueda = txtBusqueda.getText().trim();
-            boolean incluirInactivos = chkIncluirInactivos.isSelected();
+        progressBarBusqueda.setVisible(true);
+        btnBuscar.setEnabled(false);
 
-            BigDecimal precioMin = null, precioMax = null;
-            if (!txtPrecioMinBusqueda.getText().trim().isEmpty()) {
+        SwingWorker<List<Medicamento>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected List<Medicamento> doInBackground() throws Exception {
+                String textoBusqueda = txtBusqueda.getText().trim();
+                boolean incluirInactivos = chkIncluirInactivos.isSelected();
+
+                BigDecimal precioMin = null, precioMax = null;
+                if (!txtPrecioMinBusqueda.getText().trim().isEmpty()) {
+                    try {
+                        precioMin = new BigDecimal(txtPrecioMinBusqueda.getText().trim());
+                    } catch (NumberFormatException ex) {
+                        throw new Exception("Precio mínimo inválido");
+                    }
+                }
+                if (!txtPrecioMaxBusqueda.getText().trim().isEmpty()) {
+                    try {
+                        precioMax = new BigDecimal(txtPrecioMaxBusqueda.getText().trim());
+                    } catch (NumberFormatException ex) {
+                        throw new Exception("Precio máximo inválido");
+                    }
+                }
+
+                String busqueda = textoBusqueda.isEmpty() ? null : textoBusqueda;
+                String cacheKey = (busqueda + "|" + precioMin + "|" + precioMax + "|" + incluirInactivos).toLowerCase();
+                List<Medicamento> resultados;
+                if (cacheBusquedaNombre.containsKey(cacheKey)) {
+                    resultados = cacheBusquedaNombre.get(cacheKey);
+                } else {
+                    resultados = servicioMedicamento.buscarMedicamentos(
+                            busqueda,
+                            precioMin,
+                            precioMax,
+                            incluirInactivos
+                    );
+                    cacheBusquedaNombre.put(cacheKey, resultados);
+                }
+                return resultados;
+            }
+
+            @Override
+            protected void done() {
+                progressBarBusqueda.setVisible(false);
+                btnBuscar.setEnabled(true);
                 try {
-                    precioMin = new BigDecimal(txtPrecioMinBusqueda.getText().trim());
-                } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(this, "Precio mínimo inválido", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
+                    List<Medicamento> resultados = get();
+                    modelResultados.setRowCount(0);
+                    for (Medicamento m : resultados) {
+                        modelResultados.addRow(new Object[]{
+                                m.getId(),
+                                m.getNombre(),
+                                m.getPrecio(),
+                                m.isActivo() ? "Activo" : "Inactivo",
+                                m.getDescripcionPresentacion()
+                        });
+                    }
+                    // Sugerencia de ortografía si no hay resultados
+                    if (resultados.isEmpty()) {
+                        String sugerencia = "";
+                        if (!txtBusqueda.getText().trim().isEmpty()) {
+                            sugerencia = "\nSugerencia: Verifique la ortografía o intente con un término más general";
+                        }
+                        JOptionPane.showMessageDialog(VentanaMedicamento.this,
+                                "No se encontraron coincidencias" + sugerencia,
+                                "Sin resultados", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(VentanaMedicamento.this,
+                            "Error al buscar medicamentos: " + e.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace();
                 }
             }
-            if (!txtPrecioMaxBusqueda.getText().trim().isEmpty()) {
-                try {
-                    precioMax = new BigDecimal(txtPrecioMaxBusqueda.getText().trim());
-                } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(this, "Precio máximo inválido", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
-
-            // Si el campo de búsqueda está vacío, buscar todos los medicamentos
-            String busqueda = textoBusqueda.isEmpty() ? null : textoBusqueda;
-
-            // RNF-MDC-001: Búsqueda con caché
-            String cacheKey = (busqueda + "|" + precioMin + "|" + precioMax + "|" + incluirInactivos).toLowerCase();
-            List<Medicamento> resultados;
-            if (cacheBusquedaNombre.containsKey(cacheKey)) {
-                resultados = cacheBusquedaNombre.get(cacheKey);
-            } else {
-                resultados = servicioMedicamento.buscarMedicamentos(
-                        busqueda,
-                        precioMin,
-                        precioMax,
-                        incluirInactivos
-                );
-                cacheBusquedaNombre.put(cacheKey, resultados);
-            }
-
-            // Actualizar tabla
-            modelResultados.setRowCount(0);
-            for (Medicamento m : resultados) {
-                modelResultados.addRow(new Object[]{
-                        m.getId(),
-                        m.getNombre(),
-                        m.getPrecio(),
-                        m.isActivo() ? "Activo" : "Inactivo",
-                        m.getDescripcionPresentacion()
-                });
-            }
-            // Si no hay resultados, mostrar mensaje
-            if (resultados.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "No se encontraron coincidencias\nVerifique ortografía", "Sin resultados", JOptionPane.INFORMATION_MESSAGE);
-            }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error al buscar medicamentos: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
-        }
+        };
+        worker.execute();
     }
 
     // RF-MDC-003: Editar Información de Medicamento
@@ -587,6 +675,13 @@ public class VentanaMedicamento extends JFrame {
     private void guardarCambiosMedicamento() {
         try {
             int id = Integer.parseInt(txtIdEditar.getText().trim());
+
+            // Validar si el medicamento está inactivo (RF-MDC-003)
+            Medicamento m = servicioMedicamento.obtenerMedicamentoPorId(id);
+            if (m != null && !m.isActivo()) {
+                JOptionPane.showMessageDialog(this, "No puede editar medicamentos inactivos", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
             // Validar campos
             if (txtNombreEditar.getText().trim().isEmpty()) {
@@ -642,9 +737,12 @@ public class VentanaMedicamento extends JFrame {
                 campoPrecio.setToolTipText("El precio es requerido");
             } else {
                 BigDecimal precio = new BigDecimal(texto);
-                if (precio.compareTo(BigDecimal.ZERO) <= 0) {
+                if (precio.compareTo(BigDecimal.ZERO) == 0) {
                     campoPrecio.setBackground(new Color(255, 200, 200));
                     campoPrecio.setToolTipText("Precio en cero, verificar");
+                } else if (precio.compareTo(BigDecimal.ZERO) < 0) {
+                    campoPrecio.setBackground(new Color(255, 200, 200));
+                    campoPrecio.setToolTipText("Precio debe ser mayor a cero");
                 } else if (!texto.matches("^\\d+(\\.\\d{1,2})?$")) {
                     campoPrecio.setBackground(new Color(255, 200, 200));
                     campoPrecio.setToolTipText("Máximo 2 decimales permitidos");
@@ -707,9 +805,31 @@ public class VentanaMedicamento extends JFrame {
             if (opcion == JOptionPane.YES_OPTION) {
                 String resultado;
                 if (m.isActivo()) {
+                    // Validar precio antes de desactivar
+                    if (m.getPrecio().compareTo(BigDecimal.ZERO) <= 0) {
+                        JOptionPane.showMessageDialog(this,
+                                "No se puede desactivar: Precio debe ser mayor a cero",
+                                "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
                     resultado = servicioMedicamento.desactivarMedicamento(id, rolUsuarioActual);
                 } else {
+                    // Solo administradores pueden reactivar
+                    if (!rolUsuarioActual.equals("Administrador")) {
+                        JOptionPane.showMessageDialog(this, "Solo administradores pueden reactivar medicamentos", "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
                     resultado = servicioMedicamento.reactivarMedicamento(id, rolUsuarioActual);
+                }
+
+                // Mensaje específico si hay facturas pendientes
+                if (resultado.startsWith("ERROR:FACTURAS")) {
+                    String[] partes = resultado.split(":");
+                    String cantidad = partes.length > 2 ? partes[2] : "?";
+                    JOptionPane.showMessageDialog(this,
+                            "No se puede desactivar: existen " + cantidad + " facturas pendientes vinculadas",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
                 }
 
                 if (resultado.startsWith("OK:")) {
@@ -857,5 +977,14 @@ public class VentanaMedicamento extends JFrame {
             }
             new VentanaMedicamento().setVisible(true);
         });
+    }
+
+    // --- Bloqueo de botones por rol (Validaciones adicionales) ---
+    private void bloquearBotonesPorRol() {
+        boolean puedeRegistrar = rolUsuarioActual.equals("Administrador") || rolUsuarioActual.equals("Recepcionista");
+        btnRegistrar.setEnabled(puedeRegistrar);
+        btnLimpiarFormulario.setEnabled(puedeRegistrar);
+        btnGuardarCambios.setEnabled(rolUsuarioActual.equals("Administrador"));
+        btnDesactivarReactivar.setEnabled(rolUsuarioActual.equals("Administrador"));
     }
 }
