@@ -70,7 +70,10 @@ public class Main extends JFrame {
             // porque la hemos hecho modal.
             System.out.println("Ventana de diagnósticos cerrada.");
         });
-        btnMedicamentos.addActionListener(e -> mostrarMensajeModulo("Medicamentos"));
+        btnMedicamentos.addActionListener(e -> {
+            VentanaMedicamento ventanaMedicamentos = new VentanaMedicamento();
+            ventanaMedicamentos.setVisible(true);
+        });
         btnUsuarios.addActionListener(e -> mostrarMensajeModulo("Usuarios del Sistema"));
         btnFacturas.addActionListener(e -> mostrarMensajeModulo("Facturas"));
         btnReportes.addActionListener(e -> mostrarMensajeModulo("Reportes"));
