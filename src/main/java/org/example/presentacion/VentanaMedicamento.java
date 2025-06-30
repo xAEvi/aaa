@@ -546,6 +546,9 @@ public class VentanaMedicamento extends JFrame {
 
     // RF-MDC-002: Búsqueda Avanzada de Medicamentos
     private void buscarMedicamentos() {
+        // Limpiar caché antes de cada búsqueda para asegurar datos actualizados
+        cacheBusquedaNombre.clear();
+
         progressBarBusqueda.setVisible(true);
         btnBuscar.setEnabled(false);
 
@@ -571,21 +574,24 @@ public class VentanaMedicamento extends JFrame {
                     }
                 }
 
-                String busqueda = textoBusqueda.isEmpty() ? null : textoBusqueda;
-                String cacheKey = (busqueda + "|" + precioMin + "|" + precioMax + "|" + incluirInactivos).toLowerCase();
-                List<Medicamento> resultados;
-                if (cacheBusquedaNombre.containsKey(cacheKey)) {
-                    resultados = cacheBusquedaNombre.get(cacheKey);
-                } else {
-                    resultados = servicioMedicamento.buscarMedicamentos(
-                            busqueda,
-                            precioMin,
-                            precioMax,
-                            incluirInactivos
-                    );
-                    cacheBusquedaNombre.put(cacheKey, resultados);
+                // Mostrar todos los medicamentos activos si todos los filtros están vacíos/desmarcados
+                boolean filtrosVacios = textoBusqueda.isEmpty() &&
+                                        precioMin == null &&
+                                        precioMax == null &&
+                                        !incluirInactivos;
+                if (filtrosVacios) {
+                    // Buscar todos los medicamentos activos
+                    return servicioMedicamento.buscarMedicamentos(null, null, null, false);
                 }
-                return resultados;
+
+                String busqueda = textoBusqueda.isEmpty() ? null : textoBusqueda;
+                // Ya no se usa caché, pero se mantiene la lógica para compatibilidad
+                return servicioMedicamento.buscarMedicamentos(
+                        busqueda,
+                        precioMin,
+                        precioMax,
+                        incluirInactivos
+                );
             }
 
             @Override
@@ -636,15 +642,7 @@ public class VentanaMedicamento extends JFrame {
                 return;
             }
 
-            // Bloquear completamente la edición si el medicamento está inactivo (RF-MDC-003)
-            if (!m.isActivo()) {    
-                JOptionPane.showMessageDialog(this,
-                        "No puede editar medicamentos inactivos",
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Mostrar datos en el formulario
+            // Permitir edición aunque el medicamento esté inactivo
             txtNombreEditar.setText(m.getNombre());
             txtDescripcionEditar.setText(m.getDescripcionPresentacion());
             txtPrecioEditar.setText(m.getPrecio().toString());
@@ -653,10 +651,10 @@ public class VentanaMedicamento extends JFrame {
             // Configurar estado
             lblEstadoEditar.setText("Estado: " + (m.isActivo() ? "Activo" : "Inactivo"));
             btnDesactivarReactivar.setText(m.isActivo() ? "Desactivar" : "Reactivar");
-            txtNombreEditar.setEnabled(m.isActivo());
-            txtDescripcionEditar.setEnabled(m.isActivo());
-            txtPrecioEditar.setEnabled(m.isActivo());
-            btnGuardarCambios.setEnabled(m.isActivo());
+            txtNombreEditar.setEnabled(true);
+            txtDescripcionEditar.setEnabled(true);
+            txtPrecioEditar.setEnabled(true);
+            btnGuardarCambios.setEnabled(true);
 
             // Limpiar validación de nombre único
             lblNombreUnicoEdicion.setText("");
@@ -684,12 +682,7 @@ public class VentanaMedicamento extends JFrame {
         try {
             int id = Integer.parseInt(txtIdEditar.getText().trim());
 
-            // Validar si el medicamento está inactivo (RF-MDC-003)
-            Medicamento m = servicioMedicamento.obtenerMedicamentoPorId(id);
-            if (m != null && !m.isActivo()) {
-                JOptionPane.showMessageDialog(this, "No puede editar medicamentos inactivos", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+            // Ya no se bloquea edición si está inactivo
 
             // Validar campos
             if (txtNombreEditar.getText().trim().isEmpty()) {

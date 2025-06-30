@@ -239,11 +239,13 @@ BEGIN
     ELSEIF nombre_existente THEN
         SET p_resultado = 'ERROR: Ya existe un medicamento activo con ese nombre';
     ELSE
+        -- Actualización con fecha de modificación automática
         UPDATE medicamentos
         SET 
             nombre = p_nombre,
             descripcion_presentacion = p_descripcion,
-            precio = p_precio
+            precio = p_precio,
+            fecha_modificacion = CURRENT_TIMESTAMP
         WHERE id = p_id;
         
         SET p_resultado = 'OK: Medicamento actualizado correctamente';
