@@ -41,10 +41,6 @@ public class ServicioDiagnostico {
         if ("Cancelada".equalsIgnoreCase(estadoCita)) {
             throw new IllegalArgumentException("No se puede registrar un diagnóstico para una cita cancelada (ID: " + idCita + ").");
         }
-        // Opcional: Verificar si la cita ya está 'Completada' y si se permite un nuevo diagnóstico.
-        // if ("Completada".equalsIgnoreCase(estadoCita)) {
-        //     throw new IllegalArgumentException("La cita con ID " + idCita + " ya está completada.");
-        // }
 
 
         // Validación de RF-DGN-001: "Es obligatorio escribir las notas del diagnóstico."
@@ -57,12 +53,6 @@ public class ServicioDiagnostico {
             diagnostico.setFechaDiagnostico(LocalDateTime.now());
         }
 
-        // La regla "Generalmente, solo se puede registrar un diagnóstico principal por cada cita"
-        // está cubierta por la restricción UNIQUE en la BD (diagnosticos.id_cita).
-        // Si el DAO lanza una SQLException por violación de UNIQUE, se propagará.
-
-        // La regla "Se necesita permiso de 'Medico' para realizar esta acción"
-        // se asume que se maneja en la capa de presentación o con un sistema de autenticación/autorización.
 
         return diagnosticoDAO.registrarDiagnostico(diagnostico, idCita);
     }
@@ -81,13 +71,6 @@ public class ServicioDiagnostico {
             throw new IllegalArgumentException("La cantidad del medicamento debe ser mayor a cero.");
         }
 
-        // La regla "No se puede añadir el mismo medicamento más de una vez a la misma receta/diagnóstico"
-        // está cubierta por la restricción UNIQUE KEY uk_diag_med (id_diagnostico, id_medicamento) en la BD.
-        // Si el DAO lanza una SQLException por violación de UNIQUE, se propagará.
-
-        // La regla "Se necesita permiso de 'Medico'" se asume manejada externamente.
-        // La regla "buscar y seleccionar un medicamento del catálogo del sistema (solo medicamentos activos)"
-        // es responsabilidad de la UI, que debería proporcionar un id_medicamento válido y activo.
 
         return diagnosticoDAO.agregarMedicamentoADiagnostico(prescripcion);
     }
@@ -109,9 +92,6 @@ public class ServicioDiagnostico {
      * @throws SQLException Si ocurre un error durante la operación de base de datos.
      */
     public Diagnostico consultarDiagnosticoDetalladoServicio(int idDiagnostico) throws SQLException {
-        // La regla "Solo se mostrarán medicamentos que estén actualmente activos en el catálogo"
-        // es manejada por el JOIN y la condición `m.activo = TRUE` en el DAO.
-        // La regla "El acceso podría estar limitado por rol de usuario" se asume manejada externamente.
         return diagnosticoDAO.obtenerDiagnosticoDetalladoPorId(idDiagnostico);
     }
 
@@ -130,10 +110,6 @@ public class ServicioDiagnostico {
             throw new IllegalArgumentException("Las nuevas notas del diagnóstico no pueden estar vacías.");
         }
 
-        // La regla "Solo usuarios con permiso ('Medico', quizás solo el médico original o un administrador) pueden modificar"
-        // y "Es recomendable registrar quién y cuándo hizo cambios (auditoría)"
-        // se asumen manejadas externamente o parcialmente por la BD (fecha_modificacion).
-        // La no modificación de otros datos está implícita en la query del DAO.
 
         return diagnosticoDAO.modificarNotasDiagnostico(idDiagnostico, nuevasNotas);
     }
@@ -148,14 +124,6 @@ public class ServicioDiagnostico {
     public boolean eliminarMedicamentoDeDiagnosticoServicio(int idDiagnosticoMedicamento)
             throws SQLException, IllegalStateException {
 
-        // RF-DGN-006 "Consideración: Evaluar si se debe bloquear esta acción si ya se ha generado una factura..."
-        // Esta lógica es compleja y requeriría un FacturaDAO. Por simplicidad, no se implementa aquí.
-        // boolean existeFactura = false; // Lógica para verificar con FacturaDAO
-        // if (existeFactura) {
-        //     throw new IllegalStateException("No se puede eliminar el medicamento, ya está asociado a una factura no anulada.");
-        // }
-
-        // La regla "Se necesita permiso de 'Medico'" se asume manejada externamente.
         return diagnosticoDAO.eliminarMedicamentoDeDiagnostico(idDiagnosticoMedicamento);
     }
 
@@ -169,11 +137,6 @@ public class ServicioDiagnostico {
      */
     public boolean eliminarMedicamentoDeDiagnosticoServicio(int idDiagnostico, int idMedicamento)
             throws SQLException, IllegalStateException {
-        // Misma consideración sobre facturas que el método anterior.
-        // boolean existeFactura = false; // Lógica para verificar con FacturaDAO
-        // if (existeFactura) {
-        //     throw new IllegalStateException("No se puede eliminar el medicamento, ya está asociado a una factura no anulada.");
-        // }
         return diagnosticoDAO.eliminarMedicamentoDeDiagnostico(idDiagnostico, idMedicamento);
     }
 
@@ -186,13 +149,6 @@ public class ServicioDiagnostico {
      * @throws SQLException Si ocurre un error durante la operación de base de datos.
      */
     public boolean eliminarDiagnosticoCompletoServicio(int idDiagnostico) throws SQLException {
-        // La regla "Se necesita rol de 'Administrador'" y la "confirmación explícita"
-        // se asumen manejadas por la capa de presentación.
-        // La regla "Las facturas que estaban vinculadas a este diagnóstico no se borrarán,
-        // pero perderán la referencia directa a él" es manejada por `ON DELETE SET NULL` en la FK.
-        // La regla "El estado de la cita asociada ('Completada') no se modificará automáticamente" es correcta.
-        // La regla "Esta acción debe quedar registrada detalladamente (auditoría)" se maneja parcialmente
-        // por un sistema de logging externo o triggers.
 
         return diagnosticoDAO.eliminarDiagnosticoCompleto(idDiagnostico);
     }

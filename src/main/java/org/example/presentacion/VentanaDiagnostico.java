@@ -5,6 +5,7 @@ import org.example.modelo.Diagnostico; // Necesitas importar tus modelos
 import org.example.modelo.DiagnosticoMedicamento;
 import org.example.modelo.Medicamento; // Para el ComboBox y la búsqueda
 import org.example.servicio.ServicioDiagnostico; // Importa tu servicio
+import org.example.servicio.ServicioMedicamento; // Importa el servicio de medicamentos
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -68,7 +69,7 @@ public class VentanaDiagnostico extends JFrame {
     // Servicios
     private ServicioDiagnostico servicioDiagnostico;
     // private ServicioCita servicioCita; // Necesitarías este para obtener info de cita
-    // private ServicioMedicamento servicioMedicamento; // Para buscar medicamentos
+    private ServicioMedicamento servicioMedicamento; // Para buscar medicamentos
 
     // Formateador de fecha y hora
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -78,7 +79,7 @@ public class VentanaDiagnostico extends JFrame {
         // Inicializar servicios
         this.servicioDiagnostico = new ServicioDiagnostico();
         // this.servicioCita = new ServicioCita();
-        // this.servicioMedicamento = new ServicioMedicamento();
+        this.servicioMedicamento = new ServicioMedicamento();
 
 
         setTitle("Gestión de Diagnósticos");
@@ -166,8 +167,6 @@ public class VentanaDiagnostico extends JFrame {
     }
 
     private void layoutComponents() {
-        // ... (Tu código de layout existente es bueno, no lo repito aquí por brevedad)
-        // Asegúrate que el panel de prescripción se maneje bien con habilitarPanelPrescripcion
         // --- Layout Pestaña 1: Registrar / Modificar Diagnóstico ---
         panelRegistroModificacion.setLayout(new GridBagLayout());
         GridBagConstraints gbcReg = new GridBagConstraints();
@@ -447,24 +446,32 @@ public class VentanaDiagnostico extends JFrame {
 
 
     private void buscarMedicamentos() {
-        // Esto requeriría un ServicioMedicamento
-        String criterio = txtBuscarMedicamentoCatalogo.getText().trim();
-        // List<Medicamento> medicamentos = servicioMedicamento.buscarMedicamentosActivos(criterio);
-        // cmbMedicamentosEncontrados.removeAllItems();
-        // if (medicamentos != null && !medicamentos.isEmpty()) {
-        //     for (Medicamento med : medicamentos) {
-        //         cmbMedicamentosEncontrados.addItem(new MedicamentoComboBoxItem(med.getId(), med.getNombre() + " (" + med.getDescripcionPresentacion() + ")"));
-        //     }
-        // } else {
-        //     JOptionPane.showMessageDialog(this, "No se encontraron medicamentos con ese criterio.", "Búsqueda", JOptionPane.INFORMATION_MESSAGE);
-        // }
-        // Simulación:
-        cmbMedicamentosEncontrados.removeAllItems();
-        cmbMedicamentosEncontrados.addItem(new MedicamentoComboBoxItem(1, "Paracetamol 500mg"));
-        cmbMedicamentosEncontrados.addItem(new MedicamentoComboBoxItem(2, "Ibuprofeno 200mg"));
-        cmbMedicamentosEncontrados.addItem(new MedicamentoComboBoxItem(3, "Amoxicilina 250mg/5ml Susp."));
-        if(cmbMedicamentosEncontrados.getItemCount() == 0) {
-            JOptionPane.showMessageDialog(this, "No se encontraron medicamentos con ese criterio.", "Búsqueda", JOptionPane.INFORMATION_MESSAGE);
+        try {
+            String criterio = txtBuscarMedicamentoCatalogo.getText().trim();
+
+            // Llamamos al servicio real para buscar solo medicamentos ACTIVOS por nombre.
+            // Pasamos null a los precios y false a incluirInactivos.
+            List<Medicamento> medicamentos = servicioMedicamento.buscarMedicamentos(criterio, null, null, false);
+
+            cmbMedicamentosEncontrados.removeAllItems(); // Limpiar ComboBox
+
+            if (medicamentos != null && !medicamentos.isEmpty()) {
+                for (Medicamento med : medicamentos) {
+                    // Asumimos que Medicamento tiene un método getDescripcionPresentacion().
+                    // Construimos el texto a mostrar de forma segura.
+                    String nombreMostrado = med.getNombre();
+                    if (med.getDescripcionPresentacion() != null && !med.getDescripcionPresentacion().isEmpty()) {
+                        nombreMostrado += " (" + med.getDescripcionPresentacion() + ")";
+                    }
+                    cmbMedicamentosEncontrados.addItem(new MedicamentoComboBoxItem(med.getId(), nombreMostrado));
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "No se encontraron medicamentos activos con ese criterio.", "Búsqueda", JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception ex) {
+            // Aunque el servicio maneja SQLException, es bueno capturar otras posibles excepciones en la UI.
+            JOptionPane.showMessageDialog(this, "Error al buscar medicamentos: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
         }
     }
 
