@@ -189,7 +189,7 @@ public class VentanaMedicamento extends JFrame {
         panelEdicion.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         txtIdEditar = new JTextField(5);
-        txtIdEditar.setEditable(false);
+        txtIdEditar.setEditable(true);
         txtNombreEditar = new JTextField(25);
         txtDescripcionEditar = new JTextArea(5, 25);
         txtPrecioEditar = new JTextField(10);
